@@ -1,0 +1,2 @@
+# ssqrscanner
+SS QR SCANNER
