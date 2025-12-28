@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RSSB SewaSamiti - QR Scanner</title>
+    
+    <!-- QR Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+    <style>
+        :root {
+            --primary-color: #00aaaa; /* Deep Orange */
+            --secondary-color: #f57c00;
+            --success-color: #2e7d32;
+            --warning-color: #ff9800;
+            --text-color: #333;
+            --bg-color: #f5f5f5;
+            --white: #ffffff;
+            --border-radius: 12px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            width: 100%;
+            padding: 15px 0;
+            text-align: center;
+            color: var(--white);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        header h1 { margin: 0; font-size: 1.2rem; font-weight: 600; }
+        header p { margin: 5px 0 0 0; font-size: 0.8rem; opacity: 0.9; }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 15px;
+            box-sizing: border-box;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* Scanner Area */
+        .scanner-card {
+            background: var(--white);
+            padding: 0; /* Remove padding to make video flush */
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            overflow: hidden;
+            position: relative;
+            min-height: 300px;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        #reader {
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+
+        /* Overlay for Scan Feedback */
+        #scan-feedback {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .status-bar {
+            background: #fff;
+            padding: 10px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #666;
+            border-top: 1px solid #eee;
+        }
+
+        /* Controls */
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        button {
+            border: none;
+            padding: 14px;
+            border-radius: var(--border-radius);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        button:active { transform: scale(0.98); }
+
+        .btn-start {
+            background-color: var(--primary-color);
+            color: white;
+            grid-column: span 2;
+            font-size: 1.1rem;
+        }
+
+        .btn-stop {
+            background-color: #d32f2f;
+            color: white;
+            grid-column: span 2;
+            display: none;
+        }
+
+        .btn-file {
+            background-color: #1976d2;
+            color: white;
+            grid-column: span 2; /* Full width */
+        }
+
+        .btn-export { background-color: var(--success-color); color: white; }
+        .btn-import { background-color: #0097a7; color: white; }
+        .btn-clear { background-color: #757575; color: white; grid-column: span 2; margin-top: 5px; }
+
+        /* File Inputs (Hidden) */
+        #qr-input-file, #csv-input-file { display: none; }
+
+        /* Data List */
+        .data-card {
+            background: var(--white);
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .data-header {
+            padding: 12px 15px;
+            background: #eee;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+        }
+
+        .list-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: #fafafa; font-size: 0.85rem; color: #666; position: sticky; top: 0; }
+        td { font-size: 0.9rem; word-break: break-all; }
+
+        .empty-state { padding: 30px; text-align: center; color: #999; }
+
+        /* Mobile Optimization */
+        @media (max-width: 480px) {
+            .container { padding: 10px; }
+            button { padding: 12px; font-size: 0.9rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>RSSB SewaSamiti</h1>
+        <p>QR Code Scanner</p>
+    </header>
+
+    <div class="container">
+        
+        <!-- Camera Section -->
+        <div class="scanner-card">
+            <div id="reader"></div>
+            <div id="scan-feedback"></div>
+            <div id="status" class="status-bar">Ready to scan</div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="controls">
+            <!-- Main Scan Actions -->
+            <button id="startBtn" class="btn-start" onclick="startScanning()">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h6v6h-6z"></path></svg>
+                Start Live Scan
+            </button>
+            
+            <button id="stopBtn" class="btn-stop" onclick="stopScanning()">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"></rect></svg>
+                Stop Camera
+            </button>
+
+            <!-- Fallback Image Scan -->
+            <input type="file" id="qr-input-file" accept="image/*" capture="environment" onchange="scanFromFile(this)">
+            <button class="btn-file" onclick="document.getElementById('qr-input-file').click()">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                Scan Image File (Cam Fix)
+            </button>
+
+            <!-- CSV Actions -->
+            <button class="btn-export" onclick="exportToCSV()">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Export CSV
+            </button>
+            
+            <input type="file" id="csv-input-file" accept=".csv" onchange="importCSV(this)">
+            <button class="btn-import" onclick="document.getElementById('csv-input-file').click()">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m-4-4v12"></path></svg>
+                Import CSV
+            </button>
+
+            <button class="btn-clear" onclick="clearData()">Clear All Data</button>
+        </div>
+
+        <!-- Results Section -->
+        <div class="data-card">
+            <div class="data-header">
+                <span>Total Scanned</span>
+                <span id="count-badge" style="background: #e0e0e0; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem;">0</span>
+            </div>
+            <div class="list-container">
+                <table id="resultTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 35%;">Time</th>
+                            <th>Content</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+                <div id="emptyState" class="empty-state">No records yet</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let html5QrcodeScanner;
+        let scannedData = [];
+        let isScanning = false;
+        
+        // Initialize
+        window.onload = function() {
+            const saved = localStorage.getItem('rssb_sewa_data');
+            if (saved) {
+                scannedData = JSON.parse(saved);
+            }
+            updateTable();
+        };
+
+        // --- Live Scanning Logic ---
+        function startScanning() {
+            const statusDiv = document.getElementById('status');
+            
+            // Re-initialize scanner to ensure clean state
+            if (html5QrcodeScanner) {
+                try { html5QrcodeScanner.clear(); } catch(e){}
+            }
+            html5QrcodeScanner = new Html5Qrcode("reader");
+
+            const config = { 
+                fps: 10, 
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0,
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                }
+            };
+            
+            html5QrcodeScanner.start(
+                { facingMode: "environment" }, 
+                config, 
+                onScanSuccess,
+                onScanFailure
+            ).then(() => {
+                isScanning = true;
+                document.getElementById('startBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = 'flex';
+                statusDiv.innerText = "Camera Active. Scanning continuously...";
+                statusDiv.style.color = "var(--success-color)";
+            }).catch(err => {
+                console.error("Error starting camera", err);
+                statusDiv.innerText = "Camera Failed. Try 'Scan Image File' button.";
+                statusDiv.style.color = "red";
+                alert("Camera failed to start.\n\nOption 1: Check browser permissions.\nOption 2: Use the 'Scan Image File' blue button instead.");
+            });
+        }
+
+        function stopScanning() {
+            if (html5QrcodeScanner && isScanning) {
+                html5QrcodeScanner.stop().then(() => {
+                    isScanning = false;
+                    document.getElementById('startBtn').style.display = 'flex';
+                    document.getElementById('stopBtn').style.display = 'none';
+                    document.getElementById('status').innerText = "Camera stopped.";
+                    document.getElementById('status').style.color = "#666";
+                }).catch(err => console.error(err));
+            }
+        }
+
+        // --- Scan Success Logic (Live & File) ---
+        function onScanSuccess(decodedText, decodedResult) {
+            if (!isScanning && !decodedResult) return; 
+
+            const statusDiv = document.getElementById('status');
+            
+            // 1. Strict Duplicate Check (Global)
+            const isDuplicate = scannedData.some(item => item.content === decodedText);
+
+            if (isDuplicate) {
+                showFeedback("ALREADY SCANNED", "warning");
+                statusDiv.innerText = "Duplicate: " + decodedText;
+                statusDiv.style.color = "var(--warning-color)";
+                return; 
+            }
+
+            // 2. Add New Record
+            const now = new Date();
+            const newEntry = {
+                isoDate: now.toISOString(),
+                displayTime: now.toLocaleString(),
+                content: decodedText
+            };
+
+            scannedData.unshift(newEntry);
+            saveData();
+            updateTable();
+
+            // 3. Success Feedback
+            showFeedback("SUCCESS", "success");
+            statusDiv.innerText = "Scanned: " + decodedText;
+            statusDiv.style.color = "var(--success-color)";
+            
+            playBeep();
+        }
+
+        function onScanFailure(error) {
+            // Ignore frame failures
+        }
+
+        // --- Fallback: Scan from File ---
+        function scanFromFile(input) {
+            if (input.files.length === 0) return;
+            const imageFile = input.files[0];
+            
+            const html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.scanFile(imageFile, true)
+            .then(decodedText => {
+                onScanSuccess(decodedText, null);
+            })
+            .catch(err => {
+                alert("No QR code found in this image.");
+            });
+            input.value = '';
+        }
+
+        // --- UI Feedback Helpers ---
+        function showFeedback(text, type) {
+            const overlay = document.getElementById('scan-feedback');
+            overlay.innerText = text;
+            overlay.style.opacity = '1';
+            
+            if (type === 'success') {
+                overlay.style.backgroundColor = 'rgba(46, 125, 50, 0.8)';
+            } else {
+                overlay.style.backgroundColor = 'rgba(255, 152, 0, 0.8)';
+            }
+
+            setTimeout(() => {
+                overlay.style.opacity = '0';
+            }, 1000);
+        }
+
+        function playBeep() {
+            try {
+                const context = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = context.createOscillator();
+                const gain = context.createGain();
+                oscillator.connect(gain);
+                gain.connect(context.destination);
+                oscillator.frequency.value = 1000;
+                oscillator.start(0);
+                gain.gain.exponentialRampToValueAtTime(0.00001, context.currentTime + 0.1);
+                oscillator.stop(context.currentTime + 0.1);
+            } catch (e) { }
+        }
+
+        // --- Data Management ---
+        function updateTable() {
+            const tbody = document.getElementById('tableBody');
+            const emptyState = document.getElementById('emptyState');
+            const countBadge = document.getElementById('count-badge');
+            
+            tbody.innerHTML = '';
+            countBadge.innerText = scannedData.length;
+
+            if (scannedData.length === 0) {
+                emptyState.style.display = 'block';
+            } else {
+                emptyState.style.display = 'none';
+                scannedData.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td style="font-size: 0.8rem; color: #666;">${item.displayTime}</td>
+                        <td style="font-weight: 500;">${item.content}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('rssb_sewa_data', JSON.stringify(scannedData));
+        }
+
+        function exportToCSV() {
+            if (scannedData.length === 0) {
+                alert("No data to export.");
+                return;
+            }
+            let csvContent = "data:text/csv;charset=utf-8,Timestamp,Scanned Content\n";
+            scannedData.forEach(row => {
+                // Escape quotes and flatten newlines to prevent CSV breakage
+                let cleanContent = row.content.replace(/"/g, '""').replace(/(\r\n|\n|\r)/g, " "); 
+                csvContent += `"${row.displayTime}","${cleanContent}"\n`;
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `RSSB_Scan_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function importCSV(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const rows = text.split('\n');
+                let importedCount = 0;
+
+                // Start from 1 to skip header
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i].trim();
+                    if (!row) continue;
+
+                    // Robust Parse for "Timestamp","Content" format
+                    // Check if line starts and ends with quotes
+                    if (row.startsWith('"') && row.endsWith('"')) {
+                        // Remove outer quotes: "A","B" -> A","B
+                        const inner = row.slice(1, -1);
+                        
+                        // Split by "," (The delimiter between the two columns)
+                        const parts = inner.split('","');
+                        
+                        if (parts.length >= 2) {
+                            // First part is timestamp
+                            const time = parts[0];
+                            
+                            // Rest is content (rejoin just in case content had "," inside)
+                            const contentRaw = parts.slice(1).join('","');
+                            
+                            // Unescape double quotes ("" -> ")
+                            const content = contentRaw.replace(/""/g, '"');
+
+                            // Duplicate Check
+                            if (!scannedData.some(d => d.content === content)) {
+                                scannedData.push({
+                                    isoDate: new Date().toISOString(),
+                                    displayTime: time,
+                                    content: content
+                                });
+                                importedCount++;
+                            }
+                        }
+                    }
+                }
+                
+                saveData();
+                updateTable();
+                alert(`Imported ${importedCount} new records. Duplicates were skipped.`);
+                input.value = ''; // Reset
+            };
+            reader.readAsText(file);
+        }
+
+        function clearData() {
+            if (scannedData.length === 0) return;
+            if(confirm("Are you sure you want to delete ALL records? This cannot be undone.")) {
+                scannedData = [];
+                localStorage.removeItem('rssb_sewa_data');
+                updateTable();
+            }
+        }
+    </script>
+</body>
+</html>
